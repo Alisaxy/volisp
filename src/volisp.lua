@@ -93,17 +93,10 @@ function buildvolisp()
       return result
     end
   end
-  local volisp = convenience({ add = '+', sub = '-', mul = '*', div = '/' }):map(generateoperatortemplate)
-  volisp.set = function(self, ...)
-    local symbols = {}
-    local values = {}
-    convenience({...}):each(function (item, idx)
-      if idx % 2 == 0
-      then table.insert(values, {unpack(item)})
-      else table.insert(symbols, {unpack(item)}) end
-    end)
-    symbols = convenience(symbols):apply():concat(',')
-    values = convenience(values):apply():concat(',')
+  local volisp = convenience({ add = '+', sub = '-', mul = '*', div = '/', mod = '%', pow = '^' }):map(generateoperatortemplate)
+  volisp.set = function(self, symbols, ...)
+    local symbols = convenience({symbols}):apply():concat(',')
+    local values = convenience({...}):apply():concat(',')
     local template = '%s=%s'
     return template:format(symbols, values)
   end
@@ -115,8 +108,8 @@ function buildvolisp()
     local args = {...}
     local _return = table.remove(args, #args)
     assert(_return[1] ~= volisp.let, 'cannot return the following expressions: let')
-    _return = convenience({_return}):apply():concat(', ')
-    params = convenience({params}):apply():concat(', ')
+    _return = convenience({_return}):apply():concat(',')
+    params = convenience({params}):apply():concat(',')
     local _body = convenience(args):apply():concat(' ')
     local template = 'function(%s) %s return %s end'
     return template:format(params, _body, _return)
@@ -136,7 +129,6 @@ function buildvolisp()
   volisp.call = function(self, f, ...)
     f = convenience({f}):apply():concat(', ')
     args = convenience({...}):apply():concat(', ')
-    print('args', args)
     local template = '%s(%s)'
     return template:format(f, args)
   end
@@ -154,4 +146,4 @@ local set, let, fn, sym, lit, call, add, sub = volisp.set, volisp.let, volisp.fn
 --print(convenience(1, 2, 3, 4, 5):reduce(function (x, y) return x*y end))
 --print('fun222!', fn({ sym, 'x','y' }, {set, { sym, 'i' }, { lit, 6 }}, {let, { sym, 'z' }, { lit, 10 }, { sym, 'q' }, { fn, { sym, 'a' }, {let, { sym, 'o' }, { lit, '"tester"'}, {sym, 'ff'}, {fn, {sym}, {lit, 999}}}, { lit, 66 } }}, {lit, 111}))
 print(call({sym, 'x'}, {lit, 'x', 'y'}))
-print(fn({sym, 'f', 'x', 'y'}, {call, {sym, 'f'}, {lit, 7, 8}}, {add, {lit, 'x', 'y'}}))
+print(fn({sym, 'f', 'x', 'y'}, {let, {sym, 'x', 'y', 'z'}, {lit, 888}, {call, {sym, 'f'}, {lit, 7, 8}}}, {add, {sym, 'x', 'y'}}))
