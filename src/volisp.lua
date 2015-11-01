@@ -138,7 +138,10 @@ function buildvolisp()
     local template = 'setmetatable({}, {__call = function(self,%s) %s return %s end})'
     return template:format(params, _body, _return)
   end
-  volisp.sym = function(self, ...) return ... end
+  volisp.sym = function(self, ...)
+    local stripdashes = function(item) return item:gsub('-', '') end
+    return convenience({...}):map(stripdashes):unpack()
+  end
   volisp.lit = function(self, ...)
     local args = convenience({...})
     args = args:map(function (item)
@@ -195,4 +198,4 @@ print(convenience({{1,2,3}, {6,7,8}, {2,2,2}}):zip()[3]:unpack())
 print(set({sym, 'x', 'y'}, {lit, 11, 111}))
 print(tab({sym, ':x'}, {lit, 10}, {lit, 11}, {sym, ':y'}, {lit, 11}, {lit, 3}, {sym, ':z'}, {lit, '"hehe"'}))
 print(call({sym, 'x'}, {lit, 'x', 'y'}))
-print(let({sym, 'fn'}, {fn, {sym, 'f', 'x', 'y'}, {let, {sym, 'x', 'y', 'z'}, {lit, 888}, {call, {sym, 'f'}, {lit, 7, 8}}}, {add, {sym, 'x', 'y'}}}))
+print(let({sym, 'fn-a-day'}, {fn, {sym, 'f', 'x', 'y'}, {let, {sym, 'x', 'y', 'z'}, {lit, 888}, {call, {sym, 'f'}, {lit, 7, 8}}}, {add, {sym, 'x', 'y'}}}))
