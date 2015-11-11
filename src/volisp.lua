@@ -104,7 +104,7 @@ conveniencemeta = { __index = relaytometa,
 
 function buildvolisp()
   local assertionfailedtemplate = '@%s : %s'
-  local operatortemplate = '(%s%s %s)'  -- this space is to prevent the commenting out of consequtive minus signs 
+  local operatortemplate = '(%s%s %s)'  -- this whitespace is to prevent the commenting out of consequtive minus signs 
   function generateoperatortemplate(operatorstr)
     local template = operatortemplate:format('%s', operatorstr, '%s')
     return function(self, ...)
@@ -223,6 +223,21 @@ function buildvolisp()
     else template = 'if %s then %s else %s end' end
     return template:format(predicate, left, right)
   end
+  volisp.lt = function(self, ...)
+    local args = convenience({...}):apply()
+    local first = table. remove(args, 1)
+    local last = table.remove(args, #args)
+    local prelast = table.remove(args, #args)
+    local rawtemplate = '(%s<%s)'
+    local template = rawtemplate..'and%s'
+    local result = template
+    args:each(function(item)
+      result = result:format(first, item, template)
+      first = item
+    end)
+    result = result:format(first, prelast, rawtemplate:format(prelast, last))
+    return result
+  end
   volisp:each(function(call, name)
       local meta = { __call = call, __name = name, __index = relaytometa }
       volisp[name] = setmetatable({}, meta)
@@ -231,7 +246,7 @@ function buildvolisp()
 end
 
 local volisp = buildvolisp()
-local set, let, fn, sym, lit, call, tab, fork, add, sub, mul, div, mod, pow = volisp.set, volisp.let, volisp.fn, volisp.sym, volisp.lit, volisp.call, volisp.tab, volisp.fork, volisp.add, volisp.sub, volisp.mul, volisp.div, volisp.mod, volisp.pow
+local set, let, fn, sym, lit, call, tab, fork, add, sub, mul, div, mod, pow, lt = volisp.set, volisp.let, volisp.fn, volisp.sym, volisp.lit, volisp.call, volisp.tab, volisp.fork, volisp.add, volisp.sub, volisp.mul, volisp.div, volisp.mod, volisp.pow, volisp.lt
 
 --print('fun!', fn({ sym, 'x','y' }, {set, { sym, 'i' }, { lit, 6 }}, {let, { sym, 'z' }, { lit, 10 }, { sym, 'q' }, { fn, { sym, 'a' }, {let, { sym, 'o' }, { lit, '"tester"'}, {sym, 'ff'}, {fn, {sym}, {lit, 999}}}, { lit, 66 } }}, { add, {lit, 1, { sub, { lit, 2, -3 } }, 4, 5}}))
 --print(convenience(1, 2, 3, 4, 5):reduce(function (x, y) return x*y end))
@@ -248,3 +263,5 @@ print('-------------------')
 print(let({sym, 'recurse'}))
 print(set({sym, 'recurse'}, {fn, {sym, 'recurse', 'x'}, {fork, {lit, {sym, 'x'}, {sym, '<'}, 10}, {lit, {call, {sym, 'print'}, {sym, 'x'}}, {sym, 'return'}, {call, {sym, 'recurse'}, {add, {sym, 'x'}, {lit, 1}}}}}}))
 print(fork({lit, true}, {lit, {let, {sym, 'x'}, {lit, 1}}, {call, {sym, 'fx'}, {lit, 1, true, 2}}}))
+print(add({lit, 1, 2, 3, 4, 5, 6}))
+print(lt({lit, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
