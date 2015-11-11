@@ -225,10 +225,11 @@ function buildvolisp()
   end
   volisp.lt = function(self, ...)
     local args = convenience({...}):apply()
-    local first = table. remove(args, 1)
+    local first = table.remove(args, 1)
     local last = table.remove(args, #args)
     local prelast = table.remove(args, #args)
     local rawtemplate = '(%s<%s)'
+    if #args == 0 and prelast == nil then return rawtemplate:format(first, last) end
     local template = rawtemplate..'and%s'
     local result = template
     args:each(function(item)
@@ -261,7 +262,7 @@ print(call({sym, 'x'}, {lit, 'x', 'y'}))
 print(let({sym, 'fn-a-day'}, {fn, {sym, 'fn-a-day', 'f', 'x', 'y'}, {let, {sym, 'x', 'y', 'z'}, {lit, 888}, {call, {sym, 'f'}, {lit, 7, 8}}}, {add, {sym, 'x', 'y'}}}))
 print('-------------------')
 print(let({sym, 'recurse'}))
-print(set({sym, 'recurse'}, {fn, {sym, 'recurse', 'x'}, {fork, {lit, {sym, 'x'}, {sym, '<'}, 10}, {lit, {call, {sym, 'print'}, {sym, 'x'}}, {sym, 'return'}, {call, {sym, 'recurse'}, {add, {sym, 'x'}, {lit, 1}}}}}}))
+print(set({sym, 'recurse'}, {fn, {sym, 'recurse', 'x'}, {fork, {lt, {sym, 'x'}, {lit, 10}}, {lit, {call, {sym, 'print'}, {sym, 'x'}}, {sym, 'return'}, {call, {sym, 'recurse'}, {add, {sym, 'x'}, {lit, 1}}}}}}))
 print(fork({lit, true}, {lit, {let, {sym, 'x'}, {lit, 1}}, {call, {sym, 'fx'}, {lit, 1, true, 2}}}))
 print(add({lit, 1, 2, 3, 4, 5, 6}))
-print(lt({lit, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
+print(lt({lit, 1, 2}))
