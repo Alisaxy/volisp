@@ -89,7 +89,7 @@ conveniencemeta = { __index = relaytometa,
 --   tree:each(function(_, leaf)
 --     if (type(leaf) == 'table')
 --     then
---       if leaf.callable then callback('atom:', leaf.name) end
+--       if leaf.callable then callback('atom:', leaf.__name) end
 --       return runtree(leaf, callback)
 --     else callback('val:', leaf) end
 --   end)
@@ -119,8 +119,10 @@ function buildvolisp()
   local volisp = convenience({ add = '+', sub = '-', mul = '*', div = '/', mod = '%', pow = '^' }):map(generateoperatortemplate)
   volisp.set = function(self, symbols, ...)
     local symbols = convenience({symbols}):apply():concat(',')
-    local values = convenience({...}):apply():concat(',')
-    local template = '%s=%s'
+    local args = {...}
+    local values = convenience(args):apply():concat(',')
+    local template
+    if #args==0 then template = '%s' else template = '%s=%s' end
     return template:format(symbols, values)
   end
   volisp.let = function(self, ...)
@@ -129,14 +131,25 @@ function buildvolisp()
   end
   volisp.fn = function(self, params, ...)
     local args = {...}
+    local template
+    params = convenience({params}):apply()
+    local name = table.remove(params, 1)
+    params = params:concat(',')
+    if #args == 0 then
+      template = 'setmetatable({}, {__name=%s,__call=function(self,%s) end})'
+      return template:format(name, params)
+    end
     local _return = table.remove(args, #args)
-    assert(_return[1] ~= volisp.let, assertionfailedtemplate:format(self.name, 'cannot return the following expressions: let'))
+    assert(_return[1] ~= volisp.let, assertionfailedtemplate:format(self.__name, 'cannot return the following expressions: let'))
+    local forkatend = _return[1] == volisp.fork
     _return = convenience({_return}):apply():concat(',')
-    params = convenience({params}):apply():concat(',')
     local _body = convenience(args):apply():concat(' ')
     --local template = 'function(%s) %s return %s end'
-    local template = 'setmetatable({}, {__call = function(self,%s) %s return %s end})'
-    return template:format(params, _body, _return)
+    --template = 'setmetatable({}, {__name=%s,__call=function(self,%s) %s return %s end})'
+    if forkatend
+    then template = 'setmetatable({}, {__name=%s,__call=function(self,%s)%s %s end})'
+    else template = 'setmetatable({}, {__name=%s,__call=function(self,%s)%s return %s end})' end
+    return template:format(name, params, _body, _return)
   end
   volisp.sym = function(self, ...)
     local stripdashes = function(item) return item:gsub('-', '') end
@@ -145,22 +158,44 @@ function buildvolisp()
   volisp.lit = function(self, ...)
     local args = convenience({...})
     args = args:map(function (item)
-      if type(item) == 'number' or type(item) == 'string'
+      if type(item) == 'boolean' or type(item) == 'number' or type(item) == 'string'
       then return tostring(item)
-      elseif type(item) == 'table' then --print(item[1].name)
+      elseif type(item) == 'table' then --print(item[1].__name)
         return convenience({item}):apply():concat(', ')
-      else assert(false, assertionfailedtemplate:format(self.name, 'the argument can only be either a number, a string or a table')) end
+      else assert(false, assertionfailedtemplate:format(self.__name, 'the argument can only be either a boolean, a number, a string or a table')) end
     end)
     return args:unpack()
   end
   volisp.call = function(self, f, args)
-    assert(#f==2, assertionfailedtemplate:format(self.name, 'the function name can only be a single symbol'))
-    f = convenience({f}):apply():concat(', ')
-    args = convenience({args}):apply():concat(', ')
+    assert(#f==2, assertionfailedtemplate:format(self.__name, 'the function name can only be a single symbol'))
+    f = convenience({f}):apply():concat('')
+    args = convenience({args}):apply():concat(',')
     local template = '%s(%s)'
     return template:format(f, args)
   end
   volisp.tab = function(self, ...)
+    -- accessor
+    -- function access (self, ...)
+    --   local args = {...}
+    --   local result = {}
+    --   local i = 1
+    --   while i<=#args
+    --   do
+    --     local item = args[i]
+    --     if type(item) ~= 'number' and item:sub(1,1) == ':'
+    --     then
+    --       i = i + 1
+    --       self[item:sub(2,#item)] = args[i]
+    --     else table.insert(result, self[item]) end
+    --     i = i + 1
+    --   end
+    --   return unpack(result)
+    -- end
+
+    -- local t = {a = 1, b = 2}
+    -- access (t, ':a', 3, 'b')
+    -- print(t.a, t.b)
+    -- accessor
     local hashtemplate = '%s=%s'
     local acc = convenience()
     local args = convenience({...}):apply()
@@ -175,18 +210,28 @@ function buildvolisp()
       else table.insert(acc, item) end
       i = i + 1
     end
-    local template = '{%s}'
+    local template = 'setmetatable({%s},{__call=__volisp.__access})'
     return template:format(acc:concat(','))
   end
+  volisp.fork = function(self, predicate, left, right)
+    predicate = convenience({predicate}):apply():concat('')
+    left = convenience({left}):apply():concat(' ')
+    local template
+    if right == nil then
+      template = 'if %s then %s end'
+      right = convenience({right}):apply():concat(' ')
+    else template = 'if %s then %s else %s end' end
+    return template:format(predicate, left, right)
+  end
   volisp:each(function(call, name)
-      local meta = { __call = call, name = name, __index = relaytometa }
+      local meta = { __call = call, __name = name, __index = relaytometa }
       volisp[name] = setmetatable({}, meta)
     end)
   return volisp
 end
 
 local volisp = buildvolisp()
-local set, let, fn, sym, lit, call, tab, add, sub, mul, div, mod, pow = volisp.set, volisp.let, volisp.fn, volisp.sym, volisp.lit, volisp.call, volisp.tab, volisp.add, volisp.sub, volisp.mul, volisp.div, volisp.mod, volisp.pow
+local set, let, fn, sym, lit, call, tab, fork, add, sub, mul, div, mod, pow = volisp.set, volisp.let, volisp.fn, volisp.sym, volisp.lit, volisp.call, volisp.tab, volisp.fork, volisp.add, volisp.sub, volisp.mul, volisp.div, volisp.mod, volisp.pow
 
 --print('fun!', fn({ sym, 'x','y' }, {set, { sym, 'i' }, { lit, 6 }}, {let, { sym, 'z' }, { lit, 10 }, { sym, 'q' }, { fn, { sym, 'a' }, {let, { sym, 'o' }, { lit, '"tester"'}, {sym, 'ff'}, {fn, {sym}, {lit, 999}}}, { lit, 66 } }}, { add, {lit, 1, { sub, { lit, 2, -3 } }, 4, 5}}))
 --print(convenience(1, 2, 3, 4, 5):reduce(function (x, y) return x*y end))
@@ -198,4 +243,8 @@ print(convenience({{1,2,3}, {6,7,8}, {2,2,2}}):zip()[3]:unpack())
 print(set({sym, 'x', 'y'}, {lit, 11, 111}))
 print(tab({sym, ':x'}, {lit, 10}, {lit, 11}, {sym, ':y'}, {lit, 11}, {lit, 3}, {sym, ':z'}, {lit, '"hehe"'}))
 print(call({sym, 'x'}, {lit, 'x', 'y'}))
-print(let({sym, 'fn-a-day'}, {fn, {sym, 'f', 'x', 'y'}, {let, {sym, 'x', 'y', 'z'}, {lit, 888}, {call, {sym, 'f'}, {lit, 7, 8}}}, {add, {sym, 'x', 'y'}}}))
+print(let({sym, 'fn-a-day'}, {fn, {sym, 'fn-a-day', 'f', 'x', 'y'}, {let, {sym, 'x', 'y', 'z'}, {lit, 888}, {call, {sym, 'f'}, {lit, 7, 8}}}, {add, {sym, 'x', 'y'}}}))
+print('-------------------')
+print(let({sym, 'recurse'}))
+print(set({sym, 'recurse'}, {fn, {sym, 'recurse', 'x'}, {fork, {lit, {sym, 'x'}, {sym, '<'}, 10}, {lit, {call, {sym, 'print'}, {sym, 'x'}}, {sym, 'return'}, {call, {sym, 'recurse'}, {add, {sym, 'x'}, {lit, 1}}}}}}))
+print(fork({lit, true}, {lit, {let, {sym, 'x'}, {lit, 1}}, {call, {sym, 'fx'}, {lit, 1, true, 2}}}))
